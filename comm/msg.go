@@ -13,7 +13,7 @@ type Msg struct {
 	value        *cty.Value
 }
 
-func CreateMessage(ctx context.Context, replyChannel chan cty.Value, value cty.Value) Msg {
+func NewMessage(ctx context.Context, replyChannel chan cty.Value, value cty.Value) Msg {
 	return Msg{
 		Ctx:     ctx,
 		ReplyTo: replyChannel,
@@ -21,12 +21,22 @@ func CreateMessage(ctx context.Context, replyChannel chan cty.Value, value cty.V
 	}
 }
 
-func CreateLazyMessage(ctx context.Context, replyChannel chan cty.Value, valueFactory func() cty.Value) Msg {
+func NewLazyMessage(ctx context.Context, replyChannel chan cty.Value, valueFactory func() cty.Value) Msg {
 	return Msg{
 		Ctx:          ctx,
 		ReplyTo:      replyChannel,
 		valueFactory: valueFactory,
 	}
+}
+
+func NewMessageC(ctx context.Context, value cty.Value) (Msg, chan cty.Value) {
+	replyChannel := make(chan cty.Value)
+	return NewMessage(ctx, replyChannel, value), replyChannel
+}
+
+func NewLazyMessageC(ctx context.Context, valueFactory func() cty.Value) (Msg, chan cty.Value) {
+	replyChannel := make(chan cty.Value)
+	return NewLazyMessage(ctx, replyChannel, valueFactory), replyChannel
 }
 
 func (m *Msg) Value() cty.Value {
@@ -35,4 +45,17 @@ func (m *Msg) Value() cty.Value {
 		m.value = &val
 	}
 	return *m.value
+}
+
+func (m *Msg) Reply(val cty.Value) {
+	m.ReplyTo <- val
+	close(m.ReplyTo)
+}
+
+func (m *Msg) ReplyWithError() {
+	m.Reply(cty.ObjectVal(map[string]cty.Value{"err": cty.NilVal}))
+}
+
+func (m *Msg) Close() {
+	close(m.ReplyTo)
 }

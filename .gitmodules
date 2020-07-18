@@ -1,3 +1,0 @@
-[submodule "hcl"]
-	path = hcl
-	url = git@github.com:dbolotin/hcl.git
