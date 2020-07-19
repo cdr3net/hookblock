@@ -42,6 +42,10 @@ http_request dms0_request0 {
 http_request dms0_request1 {
   method = "POST"
   url = "https://webhook.site/${env.WH_ID}"
+  basic_auth = {
+    user: "user"
+    password: "password"
+  }
   encoding = "url"
   body = {
     "test": "${msg.event}"

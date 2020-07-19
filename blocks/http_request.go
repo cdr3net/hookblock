@@ -24,10 +24,16 @@ type HttpRequest struct {
 	Method          string                    `hcl:"method"`
 	URL             hcl.Expression            `hcl:"url"`
 	Timeout         *string                   `hcl:"timeout,optional"`
-	Encoding        string                    `hcl:"encoding,optional"`
 	Headers         map[string]hcl.Expression `hcl:"headers,optional"`
+	BasicAuth       *BasicAuth                `hcl:"basic_auth,optional"`
+	Encoding        string                    `hcl:"encoding,optional"`
 	Body            hcl.Expression            `hcl:"body,optional"`
 	DiscardResponse bool                      `hcl:"discard_response,optional"`
+}
+
+type BasicAuth struct {
+	User     string `cty:"user"`
+	Password string `cty:"password"`
 }
 
 // TODO monitoring
@@ -148,6 +154,10 @@ func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
 				}
 				req.Header.Add("Content-Type", contentType)
 				req.Header.Add("Content-Length", strconv.Itoa(len(bBody)))
+
+				if h.BasicAuth != nil {
+					req.SetBasicAuth(h.BasicAuth.User, h.BasicAuth.Password)
+				}
 
 				// Executing request
 				resp, err := http.DefaultClient.Do(req)

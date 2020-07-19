@@ -147,6 +147,8 @@ func main() {
 		}
 	}
 
+	log.Println("Initialization complete")
+
 	// Block forever
 
 	select {}

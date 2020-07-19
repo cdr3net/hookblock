@@ -164,6 +164,8 @@ func (h *HttpServer) Start(ctx *bctx.BCtx) error {
 		ReadTimeout:  rwTimeout,
 	}
 
+	log.Println("Listening for incoming HTTP connections on ", h.Address)
+
 	// Staring server in a separate go routine
 	go func() {
 		log.Fatal(srv.ListenAndServe())
