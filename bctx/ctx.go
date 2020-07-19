@@ -40,6 +40,21 @@ func NewCtx(dw hcl.DiagnosticWriter) *BCtx {
 	}
 }
 
+func (ctx *BCtx) DefaultEvaluationContext(msg *comm.Msg) *hcl.EvalContext {
+	// Creating the evaluation context
+	context := &hcl.EvalContext{
+		Variables: map[string]cty.Value{
+			"msg": msg.Value(),
+		},
+	}
+	// Adding default variables
+	for k, v := range ctx.DefaultVariables {
+		context.Variables[k] = v
+	}
+
+	return context
+}
+
 func (ctx *BCtx) nextChId() string {
 	ctx.i++
 	return "ch" + strconv.FormatUint(ctx.i, 10)

@@ -3,7 +3,7 @@ http_server server0 {
   timeout = "10s"
 
   endpoint {
-    path = "/test"
+    path = "/test/{test_var}"
     send_to = test_log
   }
 
@@ -33,7 +33,9 @@ dead_mans_switch dms0 {
   ]
 }
 
-log test_log {}
+log test_log {
+  text = msg
+}
 
 log dms0_log {}
 

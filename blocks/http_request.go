@@ -112,18 +112,10 @@ func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
 				}()
 
 				// Creating the evaluation context
-				context := &hcl.EvalContext{
-					Variables: map[string]cty.Value{
-						"msg": msg.Value(),
-					},
-				}
-				// Adding default variables
-				for k, v := range ctx.DefaultVariables {
-					context.Variables[k] = v
-				}
+				evCtx := ctx.DefaultEvaluationContext(&msg)
 
 				// Executing body expression
-				vBody, err := EvaluateExpression(h.Body, context)
+				vBody, err := EvaluateExpression(h.Body, evCtx)
 				if err != nil {
 					ctx.WriteError(err)
 					msg.ReplyWithError()
@@ -136,7 +128,7 @@ func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
 					return
 				}
 
-				vUrl, err := EvaluateExpression(h.URL, context)
+				vUrl, err := EvaluateExpression(h.URL, evCtx)
 				if err != nil {
 					ctx.WriteError(err)
 					msg.ReplyWithError()
