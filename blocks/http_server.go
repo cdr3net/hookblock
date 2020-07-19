@@ -111,7 +111,7 @@ func (h *HttpServer) Start(ctx *bctx.BCtx) error {
 			r.Body = http.MaxBytesReader(w, r.Body, Int64OrDefault(ep.MaxBodySize, 1048576))
 
 			// Parsing request body
-			body := cty.NilVal
+			body := ctyutil.StrNullVal
 			if !ep.DiscardBody {
 				var err error
 				body, err = BodyToValue(r.Body, r.Header)
@@ -207,7 +207,7 @@ func BodyToValue(body io.ReadCloser, header http.Header) (cty.Value, error) {
 		}
 		return ctyutil.StrMapValue(bb), nil
 	} else {
-		return cty.NilVal, nil
+		return ctyutil.StrNullVal, nil
 	}
 }
 

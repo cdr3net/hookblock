@@ -3,6 +3,11 @@ http_server server0 {
   timeout = "10s"
 
   endpoint {
+    path = "/test"
+    send_to = test_log
+  }
+
+  endpoint {
     path = "/reset_dms/${env.DMS_SECRET}"
     send_to = dms0
   }
@@ -27,6 +32,8 @@ dead_mans_switch dms0 {
     dms0_log
   ]
 }
+
+log test_log {}
 
 log dms0_log {}
 

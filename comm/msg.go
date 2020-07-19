@@ -3,6 +3,7 @@ package comm
 import (
 	"context"
 
+	"github.com/dbolotin/deadmanswitch/ctyutil"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -64,7 +65,7 @@ func (m *Msg) Reply(val cty.Value) {
 }
 
 func (m *Msg) ReplyWithError() {
-	m.Reply(cty.ObjectVal(map[string]cty.Value{"err": cty.NilVal}))
+	m.Reply(cty.ObjectVal(map[string]cty.Value{"err": ctyutil.StrNullVal}))
 }
 
 func (m *Msg) Close() {

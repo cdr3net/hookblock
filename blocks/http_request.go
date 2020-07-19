@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dbolotin/deadmanswitch/bctx"
+	"github.com/dbolotin/deadmanswitch/ctyutil"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/convert"
@@ -183,7 +184,7 @@ func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
 						msg.ReplyWithError()
 						return
 					}
-					responseBody = cty.NilVal
+					responseBody = ctyutil.StrNullVal
 				}
 
 				// Success

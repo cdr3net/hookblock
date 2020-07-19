@@ -3,6 +3,7 @@ package blocks
 import (
 	"github.com/dbolotin/deadmanswitch/bctx"
 	"github.com/dbolotin/deadmanswitch/comm"
+	"github.com/dbolotin/deadmanswitch/ctyutil"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
@@ -31,7 +32,7 @@ type IsolatedBlock struct {
 }
 
 func (b *IsolatedBlock) GetValue(ctx *bctx.BCtx) cty.Value {
-	return cty.NilVal
+	return ctyutil.StrNullVal
 }
 
 type SingleChannelBlock struct {

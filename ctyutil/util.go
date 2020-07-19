@@ -47,3 +47,5 @@ func StrMapValue(m map[string]string) cty.Value {
 	}
 	return cty.MapVal(ret)
 }
+
+var StrNullVal = cty.NullVal(cty.String)
