@@ -8,7 +8,7 @@ import (
 
 type Msg struct {
 	Ctx          context.Context
-	ReplyTo      chan<- cty.Value
+	replyTo      chan<- cty.Value
 	valueFactory func() cty.Value
 	value        *cty.Value
 }
@@ -16,7 +16,7 @@ type Msg struct {
 func NewMessage(ctx context.Context, replyChannel chan cty.Value, value cty.Value) Msg {
 	return Msg{
 		Ctx:     ctx,
-		ReplyTo: replyChannel,
+		replyTo: replyChannel,
 		value:   &value,
 	}
 }
@@ -24,9 +24,17 @@ func NewMessage(ctx context.Context, replyChannel chan cty.Value, value cty.Valu
 func NewLazyMessage(ctx context.Context, replyChannel chan cty.Value, valueFactory func() cty.Value) Msg {
 	return Msg{
 		Ctx:          ctx,
-		ReplyTo:      replyChannel,
+		replyTo:      replyChannel,
 		valueFactory: valueFactory,
 	}
+}
+
+func NewMessageNoC(ctx context.Context, value cty.Value) Msg {
+	return NewMessage(ctx, nil, value)
+}
+
+func NewLazyMessageNoC(ctx context.Context, valueFactory func() cty.Value) Msg {
+	return NewLazyMessage(ctx, nil, valueFactory)
 }
 
 func NewMessageC(ctx context.Context, value cty.Value) (Msg, chan cty.Value) {
@@ -48,8 +56,11 @@ func (m *Msg) Value() cty.Value {
 }
 
 func (m *Msg) Reply(val cty.Value) {
-	m.ReplyTo <- val
-	close(m.ReplyTo)
+	if m.replyTo == nil {
+		return
+	}
+	m.replyTo <- val
+	close(m.replyTo)
 }
 
 func (m *Msg) ReplyWithError() {
@@ -57,5 +68,8 @@ func (m *Msg) ReplyWithError() {
 }
 
 func (m *Msg) Close() {
-	close(m.ReplyTo)
+	if m.replyTo == nil {
+		return
+	}
+	close(m.replyTo)
 }

@@ -3,29 +3,54 @@ http_server server0 {
   timeout = "10s"
 
   endpoint {
-    methods = ["POST"]
-    path = "/ddds"
-    send_to = test0
+    path = "/reset_dms/${env.DMS_SECRET}"
+    send_to = dms0
   }
 
   endpoint {
     methods = ["GET"]
-    path = "/asdfffs"
+    path = "/forward"
     send_to = dms0
   }
-}
 
-log log0 {}
+  monitoring_endpoint {
+    path = "/metrics"
+  }
+}
 
 dead_mans_switch dms0 {
-  timeout = "2m"
-  send_to = [test0]
+  timeout = "10s"
+  send_to = [
+    dms0_request0,
+    dms0_request1,
+    dms0_request2,
+    dms0_log
+  ]
 }
 
-http_request test0 {
+log dms0_log {}
+
+http_request dms0_request0 {
   method = "POST"
-  url = "https://webhook.site/5959f754-dac5-4b3f-86da-731e645d1926"
+  url = "https://webhook.site/${env.WH_ID}"
+  encoding = "json"
   body = {
-    "guga": "${msg.body.a}"
+    "test": "${msg.event}"
   }
+}
+
+http_request dms0_request1 {
+  method = "POST"
+  url = "https://webhook.site/${env.WH_ID}"
+  encoding = "url"
+  body = {
+    "test": "${msg.event}"
+  }
+}
+
+http_request dms0_request2 {
+  method = "POST"
+  url = "https://webhook.site/${env.WH_ID}"
+  encoding = "raw"
+  body = "${msg.event}"
 }

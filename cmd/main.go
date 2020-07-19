@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/dbolotin/deadmanswitch/bctx"
 	"github.com/dbolotin/deadmanswitch/blocks"
@@ -16,25 +17,42 @@ import (
 )
 
 func main() {
+	// HCL Parser
 	parser := hclparse.NewParser()
+
+	// Diagnostics writer
 	writer := hcl.NewDiagnosticTextWriter(os.Stdout, parser.Files(), 80, true)
+	allDiag := hcl.Diagnostics{}
 
-	var allDiag hcl.Diagnostics
+	if len(os.Args) != 2 {
+		fmt.Println("Wrong number of arguments.")
+		os.Exit(1)
+	}
 
-	f, diag := parser.ParseHCLFile("./example.hcl")
+	// Parsing config file
+	f, diag := parser.ParseHCLFile(os.Args[1])
 	allDiag = allDiag.Extend(diag)
-
 	if allDiag.HasErrors() {
 		_ = writer.WriteDiagnostics(diag)
 		os.Exit(1)
 	}
 
+	// Creating main context
 	bCtx := bctx.NewCtx(writer)
-	variables := make(map[string]cty.Value)
 
-	// Adding predefined variables
-	// TODO
+	// Setting context variables
 
+	// Environment variables
+	envs := make(map[string]cty.Value)
+	for _, e := range os.Environ() {
+		pair := strings.SplitN(e, "=", 2)
+		envs[pair[0]] = cty.StringVal(pair[1])
+	}
+	bCtx.DefaultVariables["env"] = cty.MapVal(envs)
+
+	// First round of config interpretation
+
+	blockVariables := make(map[string]cty.Value)
 	registry := blocks.BlockRegistry()
 	blocksById := make(map[string]blocks.Block)
 	var blocksByIndex []blocks.Block
@@ -77,7 +95,7 @@ func main() {
 			break
 		}
 
-		if _, exist := variables[id]; exist {
+		if _, exist := blockVariables[id]; exist {
 			allDiag = allDiag.Append(&hcl.Diagnostic{
 				Severity: hcl.DiagError,
 				Summary:  "Reserved variable name",
@@ -89,7 +107,7 @@ func main() {
 		}
 
 		blocksById[id] = block
-		variables[id] = block.GetValue(bCtx)
+		blockVariables[id] = block.GetValue(bCtx)
 	}
 
 	if allDiag.HasErrors() {
@@ -97,12 +115,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Second round of parsing
+	// Second round of config interpretation
 
-	ctx := &hcl.EvalContext{
-		Variables: variables,
+	// Add all default variables to block variables
+	for k, v := range bCtx.DefaultVariables {
+		blockVariables[k] = v
 	}
-
+	ctx := &hcl.EvalContext{
+		Variables: blockVariables,
+	}
 	for i, b := range body.Blocks {
 		//noinspection GoNilness
 		block := blocksByIndex[i]
@@ -112,13 +133,13 @@ func main() {
 			break
 		}
 	}
-
 	if allDiag.HasErrors() {
 		_ = writer.WriteDiagnostics(allDiag)
 		os.Exit(1)
 	}
 
 	// Starting the process
+
 	for _, block := range blocksByIndex {
 		err := block.Start(bCtx)
 		if err != nil {
@@ -127,57 +148,6 @@ func main() {
 	}
 
 	// Block forever
+
 	select {}
-
-	// conf := &Config{}
-	// context := &hcl.EvalContext{
-	// 	Variables: map[string]cty.Value{
-	// 		"env": cty.MapVal(map[string]cty.Value{
-	// 			"MY_SECRET_1": cty.StringVal("uggugug"),
-	// 		}),
-	// 	},
-	// 	Functions: nil,
-	// }
-	// diag = gohcl.DecodeBody(f.Body, context, conf)
-	// allDiag = append(allDiag, diag...)
-
-	// registry := blocks.BlockRegistry()
-	// schema := hcl.BodySchema{}
-	//
-	// for _, f := range registry {
-	// 	b := f()
-	// 	bodySchema, _ := gohcl.ImpliedBodySchema(b)
-	// 	schema.Blocks = append(schema.Blocks, bodySchema.Blocks...)
-	// }
-	//
-	// fmt.Println()
-	//
-	// schema, _ := gohcl.ImpliedBodySchema(&blocks.HConfig{})
-	//
-	// content, diag := f.Body.Content(schema)
-	// allDiag = append(allDiag, diag...)
-	//
-	// if allDiag.HasErrors() {
-	// 	_ = writer.WriteDiagnostics(diag)
-	// 	return
-	// }
-	//
-	// log.Println(content)
-	//
-	// cType := cty.Capsule("channel", reflect.ChanOf(reflect.BothDir, reflect.TypeOf("")))
-	// cc := make(chan string)
-	// ccc := cty.CapsuleVal(cType, &cc)
-	//
-	// ctx := &hcl.EvalContext{
-	// 	Variables: map[string]cty.Value{
-	// 		"dms0": ccc,
-	// 	},
-	// 	Functions: nil,
-	// }
-	//
-	// diag = gohcl.DecodeBody(body.Blocks[0].Body, ctx, h)
-	//
-	// allDiag = append(allDiag, diag...)
-
-	// f.Body.Content()
 }

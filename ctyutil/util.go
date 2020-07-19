@@ -1,8 +1,6 @@
 package ctyutil
 
 import (
-	"errors"
-
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/gocty"
 )
@@ -25,9 +23,6 @@ func Convert(v interface{}) (cty.Value, error) {
 			r, err := Convert(v)
 			if err != nil {
 				return cty.Value{}, err
-			}
-			if len(ret) > 0 && ret[0].Type() != r.Type() {
-				return cty.Value{}, errors.New("inconsistent element types in list")
 			}
 			ret = append(ret, r)
 		}

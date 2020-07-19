@@ -1,6 +1,7 @@
 package bctx
 
 import (
+	"log"
 	"strconv"
 
 	"github.com/dbolotin/deadmanswitch/comm"
@@ -25,15 +26,17 @@ func (c ChannelPointer) RecvCh(ctx *BCtx) <-chan comm.Msg {
 }
 
 type BCtx struct {
-	dw       hcl.DiagnosticWriter
-	channels map[string]chan comm.Msg
-	i        uint64
+	DefaultVariables map[string]cty.Value
+	dw               hcl.DiagnosticWriter
+	channels         map[string]chan comm.Msg
+	i                uint64
 }
 
 func NewCtx(dw hcl.DiagnosticWriter) *BCtx {
 	return &BCtx{
-		dw:       dw,
-		channels: make(map[string]chan comm.Msg),
+		DefaultVariables: make(map[string]cty.Value),
+		dw:               dw,
+		channels:         make(map[string]chan comm.Msg),
 	}
 }
 
@@ -59,12 +62,27 @@ func (ctx *BCtx) NewChannel() *ChannelPointer {
 	return &ChannelPointer{Id: id}
 }
 
+func (ctx *BCtx) WriteError(err error) {
+	// TODO synchronize, limit rate, monitoring
+	if diagnostic, ok := err.(*hcl.Diagnostic); ok {
+		ctx.WriteDiagnostic(diagnostic)
+	} else {
+		log.Println(err)
+	}
+}
+
 func (ctx *BCtx) WriteDiagnostic(diagnostic *hcl.Diagnostic) {
-	// TODO synchronize, limit rate
-	ctx.dw.WriteDiagnostic(diagnostic)
+	// TODO synchronize, limit rate, monitoring
+	err := ctx.dw.WriteDiagnostic(diagnostic)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
 
 func (ctx *BCtx) WriteDiagnostics(diagnostics hcl.Diagnostics) {
-	// TODO synchronize, limit rate
-	ctx.dw.WriteDiagnostics(diagnostics)
+	// TODO synchronize, limit rate, monitoring
+	err := ctx.dw.WriteDiagnostics(diagnostics)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
