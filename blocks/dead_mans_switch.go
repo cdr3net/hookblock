@@ -13,11 +13,10 @@ import (
 
 type DeadMansSwitch struct {
 	SingleChannelBlock
-	Timeout       string  `hcl:"timeout"`
-	RepeatAfter   *string `hcl:"repeat_after,optional"`
-	BackoffFactor float64 `hcl:"backoff_factor,optional"`
-
-	SendTo []bctx.ChannelPointer `hcl:"send_to"`
+	Timeout       string              `hcl:"timeout"`
+	RepeatAfter   *string             `hcl:"repeat_after,optional"`
+	BackoffFactor float64             `hcl:"backoff_factor,optional"`
+	SendTo        bctx.ChannelPointer `hcl:"send_to"`
 }
 
 var (
@@ -54,10 +53,7 @@ func (d *DeadMansSwitch) Start(env *bctx.BEnv) error {
 	mTimeouts := dmsTimeoutsVec.With(pLabels)
 	mRepeats := dmsRepeatsVec.With(pLabels)
 
-	var sendTo []chan<- comm.Msg
-	for _, s := range d.SendTo {
-		sendTo = append(sendTo, s.SendCh(env))
-	}
+	var sendTo = d.SendTo.SendCh(env)
 
 	ch0 := d.Ch0(env)
 	go func() {
@@ -110,12 +106,10 @@ func (d *DeadMansSwitch) Start(env *bctx.BEnv) error {
 				// Sending downstream messages
 				var cCtx context.Context
 				cCtx, cancelCurrentRequest = context.WithCancel(context.Background())
-				for _, s := range sendTo {
-					msg := comm.NewMessageNoC(cCtx, cty.ObjectVal(map[string]cty.Value{
+				sendTo <- comm.NewMessageNoC(cCtx,
+					cty.ObjectVal(map[string]cty.Value{
 						"event": cty.StringVal(event),
 					}))
-					s <- msg
-				}
 			}
 		}
 	}()

@@ -75,7 +75,7 @@ func (m *Msg) Reply(val cty.Value) {
 var ErrorReply = cty.ObjectVal(map[string]cty.Value{"err": ctyutil.StrNullVal})
 
 func IsErrorReply(rep cty.Value) bool {
-	return rep.Type().IsObjectType() && rep.Type().HasAttribute("err") && rep.GetAttr("err").IsNull()
+	return (rep.Type().IsObjectType() || rep.Type().IsMapType()) && rep.Type().HasAttribute("err")
 }
 
 func (m *Msg) ReplyWithError() {

@@ -26,6 +26,10 @@ http_server server0 {
 
 dead_mans_switch dms0 {
   timeout = "10s"
+  send_to = dms0_mux
+}
+
+mux dms0_mux {
   send_to = [
     dms0_request0,
     dms0_request1,
@@ -34,12 +38,23 @@ dead_mans_switch dms0 {
   ]
 }
 
-split test_split {
+splitter test_split {
   expr = msg.body
-  send_to = test_log
+  send_to = test_mux
 }
 
-log test_log {
+mux test_mux {
+  send_to = [
+    test_log1,
+    test_log2,
+  ]
+}
+
+log test_log1 {
+  text = msg
+}
+
+log test_log2 {
   text = msg
 }
 
