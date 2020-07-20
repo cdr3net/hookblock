@@ -28,7 +28,7 @@ var (
 
 const ZeroDuration = 0 * time.Minute
 
-func (d *DeadMansSwitch) Start(ctx *bctx.BCtx) error {
+func (d *DeadMansSwitch) Start(env *bctx.BEnv) error {
 	timeout, err := time.ParseDuration(d.Timeout)
 	if err != nil {
 		return err
@@ -56,10 +56,10 @@ func (d *DeadMansSwitch) Start(ctx *bctx.BCtx) error {
 
 	var sendTo []chan<- comm.Msg
 	for _, s := range d.SendTo {
-		sendTo = append(sendTo, s.SendCh(ctx))
+		sendTo = append(sendTo, s.SendCh(env))
 	}
 
-	ch0 := d.Ch0(ctx)
+	ch0 := d.Ch0(env)
 	go func() {
 		timer := time.NewTimer(timeout)
 		lastTimeout := timeout

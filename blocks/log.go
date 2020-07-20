@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/dbolotin/deadmanswitch/bctx"
+	"github.com/dbolotin/deadmanswitch/comm"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty/json"
 )
@@ -13,30 +14,27 @@ type Log struct {
 	Text hcl.Expression `hcl:"text"`
 }
 
-func (l *Log) Start(ctx *bctx.BCtx) error {
-	ch0 := l.Ch0(ctx)
-	go func() {
-		for msg := range ch0 {
-			val := msg.Value()
+func (l *Log) Start(env *bctx.BEnv) error {
+	env.StartProcessing(l.Ch0(env), func(msg comm.Msg) error {
+		val := msg.Value()
 
-			if !l.Text.Range().Empty() {
-				evCtx := ctx.DefaultEvaluationContext(&msg)
-				var err error
-				val, err = EvaluateExpression(l.Text, evCtx)
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-			}
-
-			marshal, err := json.Marshal(val, val.Type())
+		if !l.Text.Range().Empty() {
+			evCtx := env.DefaultEvaluationContext(&msg)
+			var err error
+			val, err = bctx.EvaluateExpression(l.Text, evCtx)
 			if err != nil {
-				log.Println(err)
+				return err
 			}
-			log.Println(string(marshal))
-			msg.Close()
 		}
-	}()
+
+		marshal, err := json.Marshal(val, val.Type())
+		if err != nil {
+			log.Println(err)
+		}
+		log.Println(string(marshal))
+
+		return nil
+	})
+
 	return nil
 }

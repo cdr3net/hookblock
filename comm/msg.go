@@ -2,6 +2,7 @@ package comm
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/dbolotin/deadmanswitch/ctyutil"
 	"github.com/zclconf/go-cty/cty"
@@ -12,21 +13,26 @@ type Msg struct {
 	replyTo      chan<- cty.Value
 	valueFactory func() cty.Value
 	value        *cty.Value
+	answered     *int32
 }
 
 func NewMessage(ctx context.Context, replyChannel chan cty.Value, value cty.Value) Msg {
+	var answered int32 = 0
 	return Msg{
-		Ctx:     ctx,
-		replyTo: replyChannel,
-		value:   &value,
+		Ctx:      ctx,
+		replyTo:  replyChannel,
+		value:    &value,
+		answered: &answered,
 	}
 }
 
 func NewLazyMessage(ctx context.Context, replyChannel chan cty.Value, valueFactory func() cty.Value) Msg {
+	var answered int32 = 0
 	return Msg{
 		Ctx:          ctx,
 		replyTo:      replyChannel,
 		valueFactory: valueFactory,
+		answered:     &answered,
 	}
 }
 
@@ -39,12 +45,12 @@ func NewLazyMessageNoC(ctx context.Context, valueFactory func() cty.Value) Msg {
 }
 
 func NewMessageC(ctx context.Context, value cty.Value) (Msg, chan cty.Value) {
-	replyChannel := make(chan cty.Value)
+	replyChannel := make(chan cty.Value, 1)
 	return NewMessage(ctx, replyChannel, value), replyChannel
 }
 
 func NewLazyMessageC(ctx context.Context, valueFactory func() cty.Value) (Msg, chan cty.Value) {
-	replyChannel := make(chan cty.Value)
+	replyChannel := make(chan cty.Value, 1)
 	return NewLazyMessage(ctx, replyChannel, valueFactory), replyChannel
 }
 
@@ -60,17 +66,27 @@ func (m *Msg) Reply(val cty.Value) {
 	if m.replyTo == nil {
 		return
 	}
-	m.replyTo <- val
-	close(m.replyTo)
+	if atomic.CompareAndSwapInt32(m.answered, 0, 1) {
+		m.replyTo <- val
+		close(m.replyTo)
+	}
+}
+
+var ErrorReply = cty.ObjectVal(map[string]cty.Value{"err": ctyutil.StrNullVal})
+
+func IsErrorReply(rep cty.Value) bool {
+	return rep == ErrorReply
 }
 
 func (m *Msg) ReplyWithError() {
-	m.Reply(cty.ObjectVal(map[string]cty.Value{"err": ctyutil.StrNullVal}))
+	m.Reply(ErrorReply)
 }
 
 func (m *Msg) Close() {
 	if m.replyTo == nil {
 		return
 	}
-	close(m.replyTo)
+	if atomic.CompareAndSwapInt32(m.answered, 0, 1) {
+		close(m.replyTo)
+	}
 }

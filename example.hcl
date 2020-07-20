@@ -3,8 +3,9 @@ http_server server0 {
   timeout = "10s"
 
   endpoint {
+    methods = ["POST"]
     path = "/test/{test_var}"
-    send_to = test_log
+    send_to = test_split
   }
 
   endpoint {
@@ -31,6 +32,11 @@ dead_mans_switch dms0 {
     dms0_request2,
     dms0_log
   ]
+}
+
+split test_split {
+  expr = msg.body
+  send_to = test_log
 }
 
 log test_log {

@@ -41,6 +41,9 @@ func Convert(v interface{}) (cty.Value, error) {
 }
 
 func StrMapValue(m map[string]string) cty.Value {
+	if len(m) == 0 {
+		return cty.MapValEmpty(cty.String)
+	}
 	ret := make(map[string]cty.Value)
 	for k, v := range m {
 		ret[k] = cty.StringVal(v)

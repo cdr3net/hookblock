@@ -53,7 +53,7 @@ var (
 	hsTotalErrorsVec      = promauto.NewCounterVec(prometheus.CounterOpts{Name: "http_server_total_errors"}, []string{"block", "endpoint", "path"})
 )
 
-func (h *HttpServer) Start(ctx *bctx.BCtx) error {
+func (h *HttpServer) Start(env *bctx.BEnv) error {
 	router := mux.NewRouter()
 
 	timeout := 0 * time.Second
@@ -87,7 +87,7 @@ func (h *HttpServer) Start(ctx *bctx.BCtx) error {
 		mDownstreamErrors := hsDownstreamErrorsVec.With(pLabels)
 
 		// Resolving target communication channel
-		sendTo := ep.SendTo.SendCh(ctx)
+		sendTo := ep.SendTo.SendCh(env)
 
 		// Building route
 		route := router.Path(ep.Path)
@@ -144,7 +144,7 @@ func (h *HttpServer) Start(ctx *bctx.BCtx) error {
 				mTotalErrors.Inc()
 				log.Println("Client disconnected before receiving reply.")
 			case rep := <-ch:
-				if rep.Type().IsObjectType() && rep.Type().HasAttribute("err") && rep.GetAttr("err").IsNull() {
+				if comm.IsErrorReply(rep) {
 					mDownstreamErrors.Inc()
 					mTotalErrors.Inc()
 					http.Error(w, "error processing request", http.StatusBadRequest)

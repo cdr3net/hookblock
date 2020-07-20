@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/dbolotin/deadmanswitch/bctx"
+	"github.com/dbolotin/deadmanswitch/comm"
 	"github.com/dbolotin/deadmanswitch/ctyutil"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
@@ -39,9 +40,9 @@ type BasicAuth struct {
 
 // TODO monitoring
 
-func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
+func (h *HttpRequest) Start(env *bctx.BEnv) error {
 	// Input channel
-	ch0 := h.Ch0(ctx)
+	ch0 := h.Ch0(env)
 
 	timeout, err := time.ParseDuration(StrOrDefault(h.Timeout, "15s"))
 	if err != nil {
@@ -95,94 +96,65 @@ func (h *HttpRequest) Start(ctx *bctx.BCtx) error {
 	}
 
 	// Spinning up handing goroutine
-	go func() {
-		for m := range ch0 {
-			// Saving msg to a separate variable to use it in a forked goroutine
-			// Important: "m" must not be used
-			msg := m
+	env.StartProcessing(ch0, func(msg comm.Msg) error {
+		// Creating the evaluation context
+		evCtx := env.DefaultEvaluationContext(&msg)
 
-			// Each request processed in a separate goroutine
-			go func() {
-				// Handling errors
-				defer func() {
-					if r := recover(); r != nil {
-						ctx.WriteError(fmt.Errorf("%s", r))
-						msg.ReplyWithError()
-					}
-				}()
-
-				// Creating the evaluation context
-				evCtx := ctx.DefaultEvaluationContext(&msg)
-
-				// Executing body expression
-				vBody, err := EvaluateExpression(h.Body, evCtx)
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-				bBody, err := bodySerializer(vBody)
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-
-				vUrl, err := EvaluateExpression(h.URL, evCtx)
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-				url := vUrl.AsString()
-
-				// Setting up request
-				cCtx := msg.Ctx
-				cCtx, _ = context2.WithTimeout(cCtx, timeout)
-				req, err := http.NewRequestWithContext(cCtx, h.Method, url, bytes.NewBuffer(bBody))
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-				req.Header.Add("Content-Type", contentType)
-				req.Header.Add("Content-Length", strconv.Itoa(len(bBody)))
-
-				if h.BasicAuth != nil {
-					req.SetBasicAuth(h.BasicAuth.User, h.BasicAuth.Password)
-				}
-
-				// Executing request
-				resp, err := http.DefaultClient.Do(req)
-				if err != nil {
-					ctx.WriteError(err)
-					msg.ReplyWithError()
-					return
-				}
-
-				// Handing response body
-				var responseBody cty.Value
-				if !h.DiscardResponse {
-					responseBody, err = BodyToValue(resp.Body, resp.Header)
-					if err != nil {
-						ctx.WriteError(err)
-						msg.ReplyWithError()
-						return
-					}
-				} else {
-					_, err := io.Copy(ioutil.Discard, resp.Body)
-					if err != nil {
-						ctx.WriteError(err)
-						msg.ReplyWithError()
-						return
-					}
-					responseBody = ctyutil.StrNullVal
-				}
-
-				// Success
-				msg.Reply(cty.ObjectVal(map[string]cty.Value{"body": responseBody}))
-			}()
+		// Executing body expression
+		vBody, err := bctx.EvaluateExpression(h.Body, evCtx)
+		if err != nil {
+			return err
 		}
-	}()
+		bBody, err := bodySerializer(vBody)
+		if err != nil {
+			return err
+		}
+
+		vUrl, err := bctx.EvaluateExpression(h.URL, evCtx)
+		if err != nil {
+			return err
+		}
+		sUrl := vUrl.AsString()
+
+		// Setting up request
+		cCtx := msg.Ctx
+		cCtx, _ = context2.WithTimeout(cCtx, timeout)
+		req, err := http.NewRequestWithContext(cCtx, h.Method, sUrl, bytes.NewBuffer(bBody))
+		if err != nil {
+			return err
+		}
+		req.Header.Add("Content-Type", contentType)
+		req.Header.Add("Content-Length", strconv.Itoa(len(bBody)))
+
+		if h.BasicAuth != nil {
+			req.SetBasicAuth(h.BasicAuth.User, h.BasicAuth.Password)
+		}
+
+		// Executing request
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+		// Handing response body
+		var responseBody cty.Value
+		if !h.DiscardResponse {
+			responseBody, err = BodyToValue(resp.Body, resp.Header)
+			if err != nil {
+				return err
+			}
+		} else {
+			_, err := io.Copy(ioutil.Discard, resp.Body)
+			if err != nil {
+				return err
+			}
+			responseBody = ctyutil.StrNullVal
+		}
+
+		// Success
+		msg.Reply(cty.ObjectVal(map[string]cty.Value{"body": responseBody}))
+		return nil
+	})
+
 	return nil
 }

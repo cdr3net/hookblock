@@ -4,13 +4,12 @@ import (
 	"github.com/dbolotin/deadmanswitch/bctx"
 	"github.com/dbolotin/deadmanswitch/comm"
 	"github.com/dbolotin/deadmanswitch/ctyutil"
-	"github.com/hashicorp/hcl/v2"
 	"github.com/zclconf/go-cty/cty"
 )
 
 type Block interface {
-	GetValue(ctx *bctx.BCtx) cty.Value
-	Start(ctx *bctx.BCtx) error
+	GetValue(env *bctx.BEnv) cty.Value
+	Start(env *bctx.BEnv) error
 	SetId(id string)
 	GetId() string
 }
@@ -31,7 +30,7 @@ type IsolatedBlock struct {
 	ABlock
 }
 
-func (b *IsolatedBlock) GetValue(ctx *bctx.BCtx) cty.Value {
+func (b *IsolatedBlock) GetValue(ctx *bctx.BEnv) cty.Value {
 	return ctyutil.StrNullVal
 }
 
@@ -40,14 +39,14 @@ type SingleChannelBlock struct {
 	ICh0 *bctx.ChannelPointer
 }
 
-func (b *SingleChannelBlock) GetValue(ctx *bctx.BCtx) cty.Value {
+func (b *SingleChannelBlock) GetValue(env *bctx.BEnv) cty.Value {
 	if b.ICh0 == nil {
-		b.ICh0 = ctx.NewChannel()
+		b.ICh0 = env.NewChannel()
 	}
 	return b.ICh0.ToCty()
 }
 
-func (b *SingleChannelBlock) Ch0(ctx *bctx.BCtx) <-chan comm.Msg {
+func (b *SingleChannelBlock) Ch0(ctx *bctx.BEnv) <-chan comm.Msg {
 	return b.ICh0.RecvCh(ctx)
 }
 
@@ -97,12 +96,4 @@ func Int32OrDefault(str *int32, def int32) int32 {
 	} else {
 		return *str
 	}
-}
-
-func EvaluateExpression(expr hcl.Expression, ctx *hcl.EvalContext) (cty.Value, error) {
-	value, diag := expr.Value(ctx)
-	if diag.HasErrors() || !value.IsWhollyKnown() {
-		return value, diag
-	}
-	return value, nil
 }
