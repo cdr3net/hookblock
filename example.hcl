@@ -10,7 +10,7 @@ http_server server0 {
 
   endpoint {
     path = "/reset_dms/${env.DMS_SECRET}"
-    send_to = dms0
+    send_to = reset_message_mux
   }
 
   endpoint {
@@ -24,8 +24,20 @@ http_server server0 {
   }
 }
 
-dead_mans_switch dms0 {
-  timeout = "10s"
+mux reset_message_mux {
+  send_to = [
+    dms0,
+    reset_message_log
+  ]
+}
+
+log reset_message_log {
+  text = msg
+}
+
+timer dms0 {
+  initial_timeout = "5s"
+  timeout = msg.body
   send_to = dms0_mux
 }
 
