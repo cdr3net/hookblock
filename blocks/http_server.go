@@ -184,6 +184,9 @@ func BodyToValue(body io.ReadCloser, header http.Header) (cty.Value, error) {
 			log.Println(err)
 			return cty.Value{}, errors.New("error decoding request body")
 		}
+		if v == nil {
+			return ctyutil.StrNullVal, nil
+		}
 		body, err := ctyutil.Convert(v)
 		if err != nil {
 			log.Println(err)
