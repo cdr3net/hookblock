@@ -47,6 +47,10 @@ map dms0_map {
   expr = {
     "event": "The event is ${msg.event}."
   }
+  send_to = dms0_deduplicate
+}
+
+deduplicate dms0_deduplicate {
   send_to = dms0_mux
 }
 

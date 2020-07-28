@@ -13,6 +13,8 @@ func BlockRegistry() map[string]BlockFactory {
 		"splitter": func() Block { return &Splitter{} },
 		"mux":      func() Block { return &Mux{} },
 
+		"deduplicate": func() Block { return &Deduplicate{} },
+
 		"log": func() Block { return &Log{} },
 	}
 }
