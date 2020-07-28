@@ -9,6 +9,7 @@ func BlockRegistry() map[string]BlockFactory {
 
 		"timer": func() Block { return &Timer{} },
 
+		"map":      func() Block { return &Map{} },
 		"splitter": func() Block { return &Splitter{} },
 		"mux":      func() Block { return &Mux{} },
 

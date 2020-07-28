@@ -38,6 +38,15 @@ log reset_message_log {
 timer dms0 {
   initial_timeout = "5s"
   timeout = msg.body
+  on_timeout = dms0_map
+  on_repeat = dms0_map
+  on_reset = dms0_map
+}
+
+map dms0_map {
+  expr = {
+    "event": "The event is ${msg.event}."
+  }
   send_to = dms0_mux
 }
 

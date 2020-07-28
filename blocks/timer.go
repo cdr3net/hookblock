@@ -15,11 +15,13 @@ import (
 
 type Timer struct {
 	SingleChannelBlock
-	InitialTimeout *string             `hcl:"initial_timeout,optional"`
-	Timeout        hcl.Expression      `hcl:"timeout"`
-	RepeatAfter    *string             `hcl:"repeat_after,optional"`
-	BackoffFactor  float64             `hcl:"backoff_factor,optional"`
-	SendTo         bctx.ChannelPointer `hcl:"send_to"`
+	InitialTimeout *string              `hcl:"initial_timeout,optional"`
+	Timeout        hcl.Expression       `hcl:"timeout"`
+	RepeatAfter    *string              `hcl:"repeat_after,optional"`
+	BackoffFactor  float64              `hcl:"backoff_factor,optional"`
+	OnTimeout      *bctx.ChannelPointer `hcl:"on_timeout,optional"`
+	OnReset        *bctx.ChannelPointer `hcl:"on_reset,optional"`
+	OnRepeat       *bctx.ChannelPointer `hcl:"on_repeat,optional"`
 }
 
 var (
@@ -62,27 +64,38 @@ func (t *Timer) Start(env *bctx.BEnv) error {
 	mTimeouts := timerTimeoutsVec.With(pLabels)
 	mRepeats := timerRepeatsVec.With(pLabels)
 
-	var sendTo = t.SendTo.SendCh(env)
+	var onResetCh, onTimeoutCh, onRepeatCh chan<- comm.Msg
+
+	if t.OnReset != nil {
+		onResetCh = t.OnReset.SendCh(env)
+	}
+	if t.OnTimeout != nil {
+		onTimeoutCh = t.OnTimeout.SendCh(env)
+	}
+	if t.OnRepeat != nil {
+		onRepeatCh = t.OnRepeat.SendCh(env)
+	}
 
 	ch0 := t.Ch0(env)
 	go func() {
 		var timer *time.Timer = nil
 		var timerChannel <-chan time.Time = nil
+		var cancelCurrentRequest context.CancelFunc = nil
 
 		if initialTimeout != ZeroDuration {
 			timer = time.NewTimer(initialTimeout)
 			timerChannel = timer.C
+			cancelCurrentRequest = sendTimerMsg("reset", initialTimeout, onResetCh)
 		}
 
 		currentTimeout := initialTimeout
-		onRepeat := false
-		var cancelCurrentRequest context.CancelFunc = nil
+		isOnRepeat := false
 
 		for {
 			select {
 			case msg := <-ch0:
 				mResets.Inc()
-				onRepeat = false
+				isOnRepeat = false
 
 				// Executing timeout expression
 				timeoutValue, err := bctx.EvaluateExpression(t.Timeout, env.DefaultEvaluationContext(&msg))
@@ -126,6 +139,7 @@ func (t *Timer) Start(env *bctx.BEnv) error {
 				if currentTimeout != ZeroDuration {
 					timer = time.NewTimer(currentTimeout)
 					timerChannel = timer.C
+					cancelCurrentRequest = sendTimerMsg("reset", currentTimeout, onResetCh)
 				}
 
 				// Reporting to the upstream block that we processed the message
@@ -133,14 +147,17 @@ func (t *Timer) Start(env *bctx.BEnv) error {
 
 			case <-timerChannel:
 				var event string
-				if onRepeat {
+				var targetCh chan<- comm.Msg
+				if isOnRepeat {
 					mRepeats.Inc()
 					event = "repeat"
 					currentTimeout = time.Duration(t.BackoffFactor * float64(currentTimeout))
+					targetCh = onRepeatCh
 				} else {
 					mTimeouts.Inc()
 					event = "timeout"
 					currentTimeout = repeatAfter
+					targetCh = onTimeoutCh
 				}
 
 				// Cancelling context of previously sent downstream request
@@ -155,22 +172,33 @@ func (t *Timer) Start(env *bctx.BEnv) error {
 					timerChannel = nil
 				}
 
-				onRepeat = true
+				isOnRepeat = true
 				if currentTimeout != ZeroDuration {
 					timer = time.NewTimer(currentTimeout)
 					timerChannel = timer.C
 				}
 
-				// Sending downstream messages
-				var cCtx context.Context
-				cCtx, cancelCurrentRequest = context.WithCancel(context.Background())
-				sendTo <- comm.NewMessageNoC(cCtx,
-					cty.ObjectVal(map[string]cty.Value{
-						"event": cty.StringVal(event),
-					}))
+				cancelCurrentRequest = sendTimerMsg(event, currentTimeout, targetCh)
 			}
 		}
 	}()
 
 	return nil
+}
+
+func sendTimerMsg(event string, timeout time.Duration, to chan<- comm.Msg) context.CancelFunc {
+	if to == nil {
+		return nil
+	}
+
+	cCtx, cancelCurrentRequest := context.WithCancel(context.Background())
+	to <- comm.NewMessageNoC(
+		cCtx,
+		cty.ObjectVal(map[string]cty.Value{
+			"event":   cty.StringVal(event),
+			"timeout": cty.NumberFloatVal(float64(timeout) / float64(time.Second)),
+		}),
+	)
+
+	return cancelCurrentRequest
 }
